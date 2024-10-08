@@ -1,0 +1,5 @@
+Sample,condition,line,replicate
+CR0001,IgG,K562,1
+CR0002,H3K27ac,K562,1
+CR0003,IgG,K562,2
+CR0004,H3K27ac,K562,2
