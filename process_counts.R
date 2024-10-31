@@ -3,13 +3,15 @@ library(dplyr)
 
 # Read the count data
 counts <- read.csv(snakemake@input[["counts"]], header=TRUE, sep="\t")
+colnames(counts) <- gsub("^X\\.", "", colnames(counts))
+colnames(counts) <- gsub("\\.filtered\\.$", "", colnames(counts))
 print("Counts data:")
 print(head(counts))
 print(dim(counts))
 
 # Process counts
 counts <- counts %>%
-  unite("combined", X..chr., X.start., X.end., sep = "_")
+  unite("combined", .chr., start., end., sep = "_")  # Updated column names
 row.names(counts) <- counts$combined
 counts <- counts %>% select(-combined)
 print("Processed counts:")

@@ -34,7 +34,8 @@ def get_norm_factor(wildcards):
         next(f)  # Skip the header line
         for line in f:
             fields = line.strip().split('\t')
-            if fields[0] == sample:
+            sample_in_file = fields[0].replace('X.', '').replace('.filtered.', '')
+            if sample_in_file == sample:
                 norm_factor = fields[6]
                 print(f"Sample: {sample}, Normalization factor: {norm_factor}")
                 return norm_factor
