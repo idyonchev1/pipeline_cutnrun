@@ -72,7 +72,7 @@ rule filter_bam:
 
 rule get_counts:
     input:
-        bams=expand("filtered_bam/{sample}.bam", sample=samples)
+        bams=expand("filtered_bam/{sample}.filtered.bam", sample=samples)
     output:
         npz="results.npz",
         counts="output.tab"
@@ -105,7 +105,6 @@ rule process_counts:
 rule export_bedgraph_temp:
     input:
         bam="filtered_bam/{sample}.filtered.bam",
-        bai="filtered_bam/{sample}.bam.bai",
         normalized="normalized_counts.tsv"
     output:
         temp("greensheet_norm/{sample}.bedgraph")
