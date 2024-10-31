@@ -49,9 +49,30 @@ rule all:
         expand("macs2/{sample}_peaks.narrowPeak", 
                sample=[f"{sample}_{export_name}" for sample, export_name in export_name_dict.items() if 'IgG' not in export_name])
 
+#To prevent peakcalling on the drosophila genome we remove those reads, to also prevent FDR dilution on hg38 peaks.
+rule filter_bam:
+    input:
+        bam="{sample}.bam",
+        bai="{sample}.bam.bai"
+    output:
+        "filtered_bam/{sample}.filtered.bam"
+    threads: 4
+    resources:
+        mem_mb=8000,
+        time="24:00:00"
+    conda:
+        "cgat-apps"
+    shell:
+        """
+        samtools view -h {input.bam} | \
+        awk '{{if($0 ~ /^@/) {{if($0 !~ /@SQ.*SN:.*_/ && $0 !~ /@SQ.*SN:chrM/) print $0}} else {{if($3 !~ /_/ && $3 != "chrM") print $0}}}}' | \
+        samtools view -bS - > {output}
+        samtools index {output}
+        """
+
 rule get_counts:
     input:
-        bams=expand("{sample}.bam", sample=samples)
+        bams=expand("filtered_bam/{sample}.bam", sample=samples)
     output:
         npz="results.npz",
         counts="output.tab"
@@ -83,8 +104,8 @@ rule process_counts:
 
 rule export_bedgraph_temp:
     input:
-        bam="{sample}.bam",
-        bai="{sample}.bam.bai",
+        bam="filtered_bam/{sample}.filtered.bam",
+        bai="filtered_bam/{sample}.bam.bai",
         normalized="normalized_counts.tsv"
     output:
         temp("greensheet_norm/{sample}.bedgraph")
@@ -109,17 +130,33 @@ rule export_bigwig:
     shell:
         "bedGraphToBigWig {input} GRCh38+dm6.chrom.sizes {output} 2>>{output}.log"
 
+rule bam_to_bed:
+    input:
+        bam="filtered_bam/{sample}.filtered.bam"
+    output:
+        bed="bed/{sample}.bed"
+    threads: 1
+    resources:
+        mem_mb=8000,
+        time="24:00:00"
+    conda:
+        "cgat-apps"
+    shell:
+        """
+        bedtools bamtobed -i {input.bam} > {output.bed}
+        """
+
 rule macs2_peakcalling:
     input:
-        treatment = lambda wildcards: f"{wildcards.sample.split('_')[0]}.bam",
-        control = get_igg_control,
+        treatment = lambda wildcards: f"bed/{wildcards.sample.split('_')[0]}.bed",
+        control = lambda wildcards: f"bed/{get_igg_control(wildcards).replace('.bam', '')}.bed",
         normalized_counts = "normalized_counts.tsv"
     output:
         "macs2/{sample}_peaks.narrowPeak"
     resources:
         mem_mb=10000,
         time="24:00:00"
-    threads:1
+    threads: 1
     params:
         name = "{sample}",
         genome = "hs",
@@ -133,12 +170,10 @@ rule macs2_peakcalling:
         macs2 callpeak -t {input.treatment} -c {input.control} \
             -n {params.name} \
             --ratio {params.ratio} \
-            --format BAM \
+            --format BED \
             -g {params.genome} \
             --keep-dup all \
             --nomodel \
-            --extsize 150 \
-            --shift -75 \
             -q 0.01 \
             2> {log}
         mv {params.name}_peaks.narrowPeak {output}
